@@ -12,7 +12,9 @@
 
 ## Live Link
 
-> Not applicable -- runs locally on `http://localhost:3000`.
+> **Live on Render:** https://backend-labs-01.onrender.com
+>
+> *(URL becomes active after first Render deploy — may take ~30s to wake from free-tier sleep)*
 
 ---
 

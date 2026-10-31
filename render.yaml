@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: backend-labs-01
+    runtime: node
+    rootDir: lab-01
+    buildCommand: npm install
+    startCommand: node server.js
+    envVars:
+      - key: PORT
+        value: 10000
+    autoDeploy: true
