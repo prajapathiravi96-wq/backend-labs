@@ -50,7 +50,8 @@ app.use((req, res) => {
 
 // ─── Start Server ────────────────────────────────────────────────────────────
 app.listen(PORT, () => {
-  console.log(`✅  Server running on http://localhost:${PORT}`);
+  const host = process.env.RENDER_EXTERNAL_URL || `http://localhost:${PORT}`;
+  console.log(`✅  Server running on ${host}`);
   console.log(`    Routes: GET /  |  GET /about  |  GET /time`);
 });
 

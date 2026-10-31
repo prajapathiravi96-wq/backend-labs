@@ -8,4 +8,7 @@ services:
     envVars:
       - key: PORT
         value: 10000
+      - key: RENDER_EXTERNAL_URL
+        value: https://backend-labs-01.onrender.com
     autoDeploy: true
+

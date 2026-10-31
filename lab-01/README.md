@@ -12,9 +12,13 @@
 
 ## Live Link
 
-> **Live on Render:** https://backend-labs-01.onrender.com
+> **Live on Render:** https://backend-labs-01.onrender.com/
 >
-> *(URL becomes active after first Render deploy — may take ~30s to wake from free-tier sleep)*
+> | Route | Live URL |
+> |-------|----------|
+> | `GET /` | https://backend-labs-01.onrender.com/ |
+> | `GET /about` | https://backend-labs-01.onrender.com/about |
+> | `GET /time` | https://backend-labs-01.onrender.com/time |
 
 ---
 
