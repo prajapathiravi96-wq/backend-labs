@@ -108,3 +108,4 @@ Screenshots are stored in the [`screenshots/`](./screenshots/) directory.
 | Updating only some fields without overwriting others | Fetched existing row first, then merged request body fields with existing values before running UPDATE |
 | SQLite `books.db` file should not be committed | Added `*.db` to `.gitignore`; DB is seeded automatically on first run |
 | Needed the server to restart on every file change during development | Installed `nodemon` as devDependency; added `npm run dev` script |
+

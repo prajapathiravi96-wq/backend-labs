@@ -48,8 +48,9 @@ const initializeDBAndServer = async () => {
     }
 
     const PORT = process.env.PORT || 3001;
+    const host = process.env.RENDER_EXTERNAL_URL || `http://localhost:${PORT}`;
     app.listen(PORT, () => {
-      console.log(`✅  Server running on http://localhost:${PORT}`);
+      console.log(`✅  Server running on ${host}`);
     });
   } catch (err) {
     console.error('❌  DB init error:', err.message);
@@ -171,3 +172,4 @@ app.use((req, res) => {
 
 // ─── Boot ─────────────────────────────────────────────────────────────────────
 initializeDBAndServer();
+
