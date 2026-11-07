@@ -1,0 +1,2 @@
+HTTP 400
+{"message":"price is required and must be a non-negative number"}

@@ -1,0 +1,2 @@
+HTTP 404
+{"message":"The path '/non-existent-route' does not exist on this server."}

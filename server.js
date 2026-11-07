@@ -88,95 +88,208 @@ app.get('/time', (req, res) => {
   });
 });
 
-// ─── Lab 2 CRUD Routes (Books) ────────────────────────────────────────────────
+// ─── Lab 2 & 3 REST API Routes (/books) ──────────────────────────────────────
 
-// GET /books/  →  All books
-app.get('/books/', async (req, res) => {
+// GET /books - Search, Filter, Sort, Paginate
+const handleGetBooks = async (req, res) => {
   try {
-    const books = await db.all('SELECT * FROM book ORDER BY id');
+    const {
+      search_q = '',
+      order_by = 'id',
+      order = 'ASC',
+      limit = '10',
+      offset = '0',
+      min_price,
+      max_price,
+    } = req.query;
+
+    const allowedColumns = ['id', 'title', 'author', 'price', 'pages'];
+    const safeOrderBy = allowedColumns.includes(order_by.toLowerCase())
+      ? order_by.toLowerCase()
+      : 'id';
+
+    const safeOrder = order.toUpperCase() === 'DESC' ? 'DESC' : 'ASC';
+
+    const parsedLimit = parseInt(limit, 10);
+    const parsedOffset = parseInt(offset, 10);
+    if (isNaN(parsedLimit) || parsedLimit < 1) {
+      return res.status(400).json({ message: 'limit must be a positive integer' });
+    }
+    if (isNaN(parsedOffset) || parsedOffset < 0) {
+      return res.status(400).json({ message: 'offset must be a non-negative integer' });
+    }
+
+    const conditions = [];
+    const params = [];
+
+    if (search_q.trim() !== '') {
+      conditions.push('title LIKE ?');
+      params.push(`%${search_q.trim()}%`);
+    }
+
+    if (min_price !== undefined && max_price !== undefined) {
+      const min = Number(min_price);
+      const max = Number(max_price);
+      if (isNaN(min) || isNaN(max)) {
+        return res.status(400).json({ message: 'min_price and max_price must be valid numbers' });
+      }
+      conditions.push('price BETWEEN ? AND ?');
+      params.push(min, max);
+    } else if (min_price !== undefined) {
+      const min = Number(min_price);
+      if (isNaN(min)) {
+        return res.status(400).json({ message: 'min_price must be a valid number' });
+      }
+      conditions.push('price >= ?');
+      params.push(min);
+    } else if (max_price !== undefined) {
+      const max = Number(max_price);
+      if (isNaN(max)) {
+        return res.status(400).json({ message: 'max_price must be a valid number' });
+      }
+      conditions.push('price <= ?');
+      params.push(max);
+    }
+
+    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+    const query = `
+      SELECT * FROM book
+      ${whereClause}
+      ORDER BY ${safeOrderBy} ${safeOrder}
+      LIMIT ? OFFSET ?
+    `;
+    params.push(parsedLimit, parsedOffset);
+
+    const books = await db.all(query, params);
     res.status(200).json(books);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ message: err.message });
   }
-});
+};
 
-// GET /books/:bookId/  →  Single book
-app.get('/books/:bookId/', async (req, res) => {
+app.get('/books', handleGetBooks);
+app.get('/books/', handleGetBooks);
+
+// GET /books/:bookId - Single book
+const handleGetSingleBook = async (req, res) => {
   try {
-    const book = await db.get('SELECT * FROM book WHERE id = ?', [req.params.bookId]);
+    const { bookId } = req.params;
+    const book = await db.get('SELECT * FROM book WHERE id = ?', [bookId]);
     if (!book) {
-      return res.status(404).json({ error: 'Book not found' });
+      return res.status(404).json({ message: 'Book not found' });
     }
     res.status(200).json(book);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ message: err.message });
   }
-});
+};
 
-// POST /books/  →  Add book
-app.post('/books/', async (req, res) => {
+app.get('/books/:bookId', handleGetSingleBook);
+app.get('/books/:bookId/', handleGetSingleBook);
+
+// POST /books - Add book with validation
+const handleCreateBook = async (req, res) => {
   try {
     const { title, author, price, pages } = req.body;
-    if (!title || !author || price === undefined || pages === undefined) {
-      return res.status(400).json({ error: 'title, author, price and pages are required' });
+
+    if (!title || typeof title !== 'string' || title.trim() === '') {
+      return res.status(400).json({ message: 'title is required and must be a non-empty string' });
     }
+    if (!author || typeof author !== 'string' || author.trim() === '') {
+      return res.status(400).json({ message: 'author is required and must be a non-empty string' });
+    }
+    if (price === undefined || typeof price !== 'number' || isNaN(price) || price < 0) {
+      return res.status(400).json({ message: 'price is required and must be a non-negative number' });
+    }
+    if (pages === undefined || typeof pages !== 'number' || isNaN(pages) || pages < 1) {
+      return res.status(400).json({ message: 'pages is required and must be a positive integer' });
+    }
+
     const result = await db.run(
       'INSERT INTO book (title, author, price, pages) VALUES (?, ?, ?, ?)',
-      [title, author, price, pages]
+      [title.trim(), author.trim(), price, Math.floor(pages)]
     );
-    res.status(201).json({ id: result.lastID, message: 'Book added successfully' });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
 
-// PUT /books/:bookId/  →  Update book
-app.put('/books/:bookId/', async (req, res) => {
+    res.status(201).json({
+      id: result.lastID,
+      message: 'Book created successfully',
+    });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+app.post('/books', handleCreateBook);
+app.post('/books/', handleCreateBook);
+
+// PUT /books/:bookId - Update book
+const handleUpdateBook = async (req, res) => {
   try {
-    const existing = await db.get('SELECT * FROM book WHERE id = ?', [req.params.bookId]);
+    const { bookId } = req.params;
+    const existing = await db.get('SELECT * FROM book WHERE id = ?', [bookId]);
     if (!existing) {
-      return res.status(404).json({ error: 'Book not found' });
+      return res.status(404).json({ message: 'Book not found' });
     }
-    const {
-      title  = existing.title,
-      author = existing.author,
-      price  = existing.price,
-      pages  = existing.pages,
-    } = req.body;
+
+    const { title, author, price, pages } = req.body;
+
+    if (title !== undefined && (typeof title !== 'string' || title.trim() === '')) {
+      return res.status(400).json({ message: 'title must be a non-empty string' });
+    }
+    if (author !== undefined && (typeof author !== 'string' || author.trim() === '')) {
+      return res.status(400).json({ message: 'author must be a non-empty string' });
+    }
+    if (price !== undefined && (typeof price !== 'number' || isNaN(price) || price < 0)) {
+      return res.status(400).json({ message: 'price must be a non-negative number' });
+    }
+    if (pages !== undefined && (typeof pages !== 'number' || isNaN(pages) || pages < 1)) {
+      return res.status(400).json({ message: 'pages must be a positive integer' });
+    }
+
+    const updatedTitle = title !== undefined ? title.trim() : existing.title;
+    const updatedAuthor = author !== undefined ? author.trim() : existing.author;
+    const updatedPrice = price !== undefined ? price : existing.price;
+    const updatedPages = pages !== undefined ? Math.floor(pages) : existing.pages;
 
     await db.run(
       'UPDATE book SET title = ?, author = ?, price = ?, pages = ? WHERE id = ?',
-      [title, author, price, pages, req.params.bookId]
+      [updatedTitle, updatedAuthor, updatedPrice, updatedPages, bookId]
     );
+
     res.status(200).json({ message: 'Book updated successfully' });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ message: err.message });
   }
-});
+};
 
-// DELETE /books/:bookId/  →  Delete book
-app.delete('/books/:bookId/', async (req, res) => {
+app.put('/books/:bookId', handleUpdateBook);
+app.put('/books/:bookId/', handleUpdateBook);
+
+// DELETE /books/:bookId - Remove book
+const handleDeleteBook = async (req, res) => {
   try {
-    const existing = await db.get('SELECT * FROM book WHERE id = ?', [req.params.bookId]);
+    const { bookId } = req.params;
+    const existing = await db.get('SELECT * FROM book WHERE id = ?', [bookId]);
     if (!existing) {
-      return res.status(404).json({ error: 'Book not found' });
+      return res.status(404).json({ message: 'Book not found' });
     }
-    await db.run('DELETE FROM book WHERE id = ?', [req.params.bookId]);
+
+    await db.run('DELETE FROM book WHERE id = ?', [bookId]);
     res.status(200).json({ message: 'Book deleted successfully' });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ message: err.message });
   }
-});
+};
+
+app.delete('/books/:bookId', handleDeleteBook);
+app.delete('/books/:bookId/', handleDeleteBook);
 
 // ─── 404 Handler ─────────────────────────────────────────────────────────────
 app.use((req, res) => {
   res.status(404).json({
-    status: 404,
-    error: 'Not Found',
     message: `The path '${req.path}' does not exist on this server.`,
   });
 });
 
 // ─── Boot ─────────────────────────────────────────────────────────────────────
 initializeDBAndServer();
-
